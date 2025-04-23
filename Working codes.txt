@@ -1,0 +1,1034 @@
+q1) 8 bit up counter
+#include <LPC17XX.h>
+unsigned int j,counter=0;
+//8bit up counter
+int main(void){
+	SystemInit();
+	SystemCoreClockUpdate();
+	
+	LPC_PINCON->PINSEL0=0x00000000;
+	LPC_GPIO0->FIODIRL=0x0FF0;
+	
+	while(1){
+		LPC_GPIO0->FIOPINL=counter<<4;
+		for (j=0;j<1000000;j++);
+		counter++;
+	}
+}	
+
+Q2)8 bit up-down counter, counts down as long as the switch is pressed
+#include <LPC17XX.h>
+unsigned int j,counter=0;
+//8bit up counter
+int main(void){
+	SystemInit();
+	SystemCoreClockUpdate();
+	
+	LPC_PINCON->PINSEL0=0x00000000;
+	LPC_GPIO0->FIODIRL=0x0FF0;
+	
+	while(1){
+		if (LPC_GPIO2->FIOPIN & 1<<12){
+			counter++;
+			LPC_GPIO0->FIOPINL=counter<<4;
+			for (j=0;j<1000000;j++);
+		}
+		else{
+			counter--;
+			LPC_GPIO0->FIOPINL=counter<<4;
+			for (j=0;j<1000000;j++);
+		}
+}	
+}
+
+Q3)Johnson counter
+#include<LPC17xx.h>
+unsigned int i,j;
+unsigned long LED=0X00000010;
+int main(){
+	SystemInit();
+	SystemCoreClockUpdate();
+	LPC_PINCON->PINSEL0=0;
+	LPC_GPIO0->FIODIR=0X00000FF0;
+	while(1){
+		LED=0X00000010;
+		for(i=1;i<9;i++){
+			LPC_GPIO0->FIOSET=LED;
+			for(j=0;j<1000000;j++);
+			LED<<=1;
+		}
+		LED=0X00000010;
+		for(i=1;i<9;i++){
+			LPC_GPIO0->FIOCLR=LED;
+			for(j=0;j<1000000;j++);
+			LED<<=1;
+		}
+	}
+}
+
+Q4)Ring Counter
+#include<LPC17xx.h>
+unsigned int i,j;
+unsigned long LED=0X00000010;
+int main(){
+	SystemInit();
+	SystemCoreClockUpdate();
+	LPC_PINCON->PINSEL0=0;
+	LPC_GPIO0->FIODIR=0X00000FF0;
+	while(1){
+		LED=0X00000010;
+		for(i=1;i<9;i++){
+			LPC_GPIO0->FIOSET=LED;
+			for(j=0;j<1000000;j++);
+			LPC_GPIO0->FIOCLR=LED;
+			for(j=0;j<1000000;j++);
+			LED<<=1;
+		}
+		
+	}
+}
+--------------------------------------------------------------------------------7 segment Display----------------------------------------------------------------------------
+q1)7 segment up/down counter- down counts when switch is pressed
+#include <LPC17xx.h>
+#include <stdio.h>
+
+// Define Constants for 7-Segment Display Digit Selection
+#define FIRST_SEG  (0 << 23)
+#define SECOND_SEG (1 << 23)
+#define THIRD_SEG  (2 << 23)
+#define FOURTH_SEG (3 << 23)
+
+unsigned int k = 4;
+unsigned int dig_count = 0; // Current digit count
+unsigned int digit_value[4] = {9, 9, 9, 9}; // Stores the four-digit counter values
+unsigned int select_segment[4] = {FIRST_SEG, SECOND_SEG, THIRD_SEG, FOURTH_SEG};
+
+// Seven Segment Display Mapping
+unsigned char seven_seg[10] = {0x3F, 0x06, 0x5B, 0x4F, 0x66, 0x6D, 0x7D, 0x07, 0x7F, 0x6F};
+
+unsigned long int i = 0;
+unsigned int count = 0, flag = 0;
+
+#define N 2000 // Delay threshold for counting speed
+
+// Function Prototypes
+void Display(void);
+void delay(void);
+void delay2(void);
+
+int main(void)
+{
+    SystemInit();
+    SystemCoreClockUpdate();
+
+    // Configure GPIO Pins
+    LPC_PINCON->PINSEL0 = 0;       // P0.4 to P0.11 as GPIO (Data lines)
+    LPC_PINCON->PINSEL3 = 0;       // P1.23 to P1.26 as GPIO (Digit selection lines)
+    LPC_GPIO0->FIODIR = 0x00000FF0; // P0.4 to P0.11 as output for 7-segment control
+    LPC_GPIO1->FIODIR = 0x07800000; // P1.23 to P1.26 as output for digit selection
+
+    while (1)
+    {
+        if (!(LPC_GPIO0->FIOPIN & 1 << 21))    
+            delay();  // Control counting speed
+        else
+            delay2();
+
+        dig_count += 1;
+        if (dig_count == 4) // Reset after 4 digits
+            dig_count = 0;
+
+        Display(); // Update display
+    }
+
+    return 0;
+}
+
+// Function to Display Numbers on Seven Segment Display
+void Display(void)
+{
+    LPC_GPIO1->FIOPIN = select_segment[dig_count]; // Select active digit
+    LPC_GPIO0->FIOPIN = seven_seg[digit_value[dig_count]] << 4; // Set segment data
+
+    for (i = 0; i < 500; i++); // Small delay (optional)
+
+    LPC_GPIO0->FIOCLR = 0x00000FF0; // Clear display before next update (optional)
+}
+
+// Function to Handle Delay and Counting Logic
+void delay(void)
+{
+    for (i = 0; i < 500; i++); // Small software delay
+
+    if (count == N) // When counter reaches the threshold
+    {
+        flag = 0xFF; // Set flag to increment counter
+        count = 0;   // Reset count
+    }
+    else
+        count += 1;
+
+    // If flag is set, update digit values
+    if (flag == 0xFF)
+    {
+        flag = 0;
+        digit_value[0] -= 1; // Decrement first digit
+
+        if (digit_value[0] == -1) // Carry-over logic for multi-digit counter
+        {
+            digit_value[0] = 9;
+            digit_value[1] -= 1;
+
+            if (digit_value[1] == -1)
+            {
+                digit_value[1] = 9;
+                digit_value[2] -= 1;
+
+                if (digit_value[2] == -1)
+                {
+                    digit_value[2] = 9;
+                    digit_value[3] -= 1;
+
+                    if (digit_value[3] == -1) // Reset after 0000
+                    {
+                        digit_value[3] = 9;
+                    }
+                }
+            }
+        }
+    }
+}
+
+// BCD UP COUNTER
+void delay2(void)
+{
+    for (i = 0; i < 5000; i++); // Small software delay
+
+    if (count == N) // When counter reaches the threshold
+    {
+        flag = 0xFF; // Set flag to increment counter
+        count = 0;   // Reset count
+    }
+    else
+        count += 1;
+
+    // If flag is set, update digit values
+    if (flag == 0xFF)
+    {
+        flag = 0;
+        digit_value[0] += 1; // Increment first digit
+
+        if (digit_value[0] == 10) // Carry-over logic for multi-digit counter
+        {
+            digit_value[0] = 0;
+            digit_value[1] += 1;
+
+            if (digit_value[1] == 10)
+            {
+                digit_value[1] = 0;
+                digit_value[2] += 1;
+
+                if (digit_value[2] == 10)
+                {
+                    digit_value[2] = 0;
+                    digit_value[3] += 1;
+
+                    if (digit_value[3] == 10) // Reset after 9999
+                    {
+                        digit_value[3] = 0;
+                    }
+                }
+            }
+        }
+    }
+}
+
+// (LPC_GPIO2->FIOPIN & 1 << 12)
+
+
+Q2)4-bit binary ring counter
+#include <LPC17xx.h>
+
+// Digit Select Lines
+#define FIRST_SEG  (0 << 23)
+#define SECOND_SEG (1 << 23)
+#define THIRD_SEG  (2 << 23)
+#define FOURTH_SEG (3 << 23)
+unsigned int temp[4],k; // FIXED: declare before use
+unsigned int dig_count = 0;
+unsigned int digit_value[4] = {0, 0, 0, 1}; // Initial ring pattern: 0001
+unsigned int select_segment[4] = {FIRST_SEG, SECOND_SEG, THIRD_SEG, FOURTH_SEG};
+
+// 7-Segment encoding for 0 and 1
+unsigned char seven_seg[2] = {0x3F, 0x06}; // 0 -> 0x3F, 1 -> 0x06
+
+unsigned long int i = 0;
+unsigned int delay_counter = 0;
+#define N 50000  // Delay threshold for controlling ring speed
+
+void Display(void);
+void delay_ring(void);
+
+int main(void)
+{
+    SystemInit();
+    SystemCoreClockUpdate();
+
+    LPC_PINCON->PINSEL0 = 0;        // P0.4 - P0.11 as GPIO
+    LPC_PINCON->PINSEL3 = 0;        // P1.23 - P1.26 as GPIO
+    LPC_GPIO0->FIODIR = 0x00000FF0; // P0.4 - P0.11 output (segments)
+    LPC_GPIO1->FIODIR = 0x07800000; // P1.23 - P1.26 output (digit select)
+
+    while (1)
+    {
+        delay_ring(); // Control ring counter speed
+
+        dig_count += 1;
+        if (dig_count == 4)
+            dig_count = 0;
+
+        Display(); // Show current digit
+    }
+
+    // Remove any code after infinite loop
+    // return 0;  <-- not needed, hence line 44 warning
+}
+
+void Display(void)
+{
+    LPC_GPIO1->FIOPIN = select_segment[dig_count]; // Select digit
+    LPC_GPIO0->FIOPIN = seven_seg[digit_value[dig_count]] << 4; // Show 0 or 1
+    for (i = 0; i < 500; i++); // Short delay
+    LPC_GPIO0->FIOCLR = 0x00000FF0; // Clear segment lines
+}
+
+void delay_ring(void)
+{
+    unsigned int j; // FIXED: declare 'j' at the top of the block
+
+    for (j = 0; j < 1000; j++); // Small software delay
+
+    if (delay_counter >= N)
+    {
+        delay_counter = 0;
+
+        // Shift the "1" to the next digit
+        
+        for (k = 0; k < 4; k++)
+            temp[k] = digit_value[k];
+
+        digit_value[0] = temp[3];  // Rotate left
+        digit_value[1] = temp[0];
+        digit_value[2] = temp[1];
+        digit_value[3] = temp[2];
+    }
+    else
+    {
+        delay_counter++;
+    }
+}
+
+Q3)#include <LPC17xx.h>
+
+// Segment select lines
+#define FIRST_SEG  (0 << 23)
+#define SECOND_SEG (1 << 23)
+#define THIRD_SEG  (2 << 23)
+#define FOURTH_SEG (3 << 23)
+
+unsigned int dig_count = 0;
+unsigned int digit_value[4] = {0, 0, 0, 0}; // Holds each hex digit
+unsigned int select_segment[4] = {FIRST_SEG, SECOND_SEG, THIRD_SEG, FOURTH_SEG};
+
+// Hexadecimal 7-segment encoding for 0-F
+unsigned char seven_seg[16] = {
+    0x3F, // 0
+    0x06, // 1
+    0x5B, // 2
+    0x4F, // 3
+    0x66, // 4
+    0x6D, // 5
+    0x7D, // 6
+    0x07, // 7
+    0x7F, // 8
+    0x6F, // 9
+    0x77, // A
+    0x7C, // b
+    0x39, // C
+    0x5E, // d
+    0x79, // E
+    0x71  // F
+};
+
+unsigned long int i = 0;
+unsigned int count = 0, flag = 0;
+
+#define N 2000 // Delay threshold
+
+void Display(void);
+void delay_up(void);
+void delay_down(void);
+
+int main(void)
+{
+    SystemInit();
+    SystemCoreClockUpdate();
+
+    // Set pins as GPIO
+    LPC_PINCON->PINSEL0 = 0;
+    LPC_PINCON->PINSEL3 = 0;
+
+    // Set directions
+    LPC_GPIO0->FIODIR = 0x00000FF0;  // P0.4 - P0.11 for segments
+    LPC_GPIO1->FIODIR = 0x07800000;  // P1.23 - P1.26 for digit control
+
+    while (1)
+    {
+        if (LPC_GPIO0->FIOPIN & (1 << 21))
+            delay_up();   // Count UP
+        else
+            delay_down(); // Count DOWN
+
+        dig_count += 1;
+        if (dig_count == 4)
+            dig_count = 0;
+
+        Display(); // Refresh display
+    }
+
+    // return 0; <- unreachable, not needed in infinite loop
+}
+
+// Multiplexed Display Function
+void Display(void)
+{
+    LPC_GPIO1->FIOPIN = select_segment[dig_count]; // Select digit
+    LPC_GPIO0->FIOPIN = seven_seg[digit_value[dig_count]] << 4; // Show hex digit
+    for (i = 0; i < 500; i++);
+    LPC_GPIO0->FIOCLR = 0x00000FF0; // Clear segment lines
+}
+
+// Hexadecimal UP Counter
+void delay_up(void)
+{
+    unsigned int j;
+    for (j = 0; j < 1000; j++);
+
+    if (count == N)
+    {
+        flag = 1;
+        count = 0;
+    }
+    else
+        count++;
+
+    if (flag)
+    {
+        flag = 0;
+        digit_value[0] += 1;
+
+        if (digit_value[0] == 16)
+        {
+            digit_value[0] = 0;
+            digit_value[1] += 1;
+
+            if (digit_value[1] == 16)
+            {
+                digit_value[1] = 0;
+                digit_value[2] += 1;
+
+                if (digit_value[2] == 16)
+                {
+                    digit_value[2] = 0;
+                    digit_value[3] += 1;
+
+                    if (digit_value[3] == 16)
+                    {
+                        digit_value[3] = 0; // Reset to 0000 after FFFF
+                    }
+                }
+            }
+        }
+    }
+}
+
+// Hexadecimal DOWN Counter
+void delay_down(void)
+{
+    unsigned int j;
+    for (j = 0; j < 1000; j++);
+
+    if (count == N)
+    {
+        flag = 1;
+        count = 0;
+    }
+    else
+        count++;
+
+    if (flag)
+    {
+        flag = 0;
+
+        if (digit_value[0] == 0)
+        {
+            digit_value[0] = 15;
+
+            if (digit_value[1] == 0)
+            {
+                digit_value[1] = 15;
+
+                if (digit_value[2] == 0)
+                {
+                    digit_value[2] = 15;
+
+                    if (digit_value[3] == 0)
+                    {
+                        digit_value[3] = 15;
+                    }
+                    else
+                    {
+                        digit_value[3]--;
+                    }
+                }
+                else
+                {
+                    digit_value[2]--;
+                }
+            }
+            else
+            {
+                digit_value[1]--;
+            }
+        }
+        else
+        {
+            digit_value[0]--;
+        }
+    }
+}
+
+-----------------------------------------------------------------------------------LCD----------------------------------------------------------------------------------------
+Q1) welcome code
+#include <LPC17xx.h>
+#define RS_CTRL 0x08000000 //P0.27
+#define EN_CTRL 0x10000000 //P0.28
+#define DT_CTRL 0x07800000 //P0.23 to P0.26 data lines
+unsigned long int temp1=0, temp2=0,i,j ;
+unsigned char flag1 =0, flag2 =0;
+unsigned char msg[] = {"WELCOME"};
+ 
+ 
+void lcd_write (void);
+ 
+void port_write (void);
+void delay_lcd (unsigned int);
+unsigned long int init_command [] = {0x30,0x30,0x30,0x20,0x28,0x0C,0X06,0X01,0X80};
+int main(void)
+{
+SystemInit();
+SystemCoreClockUpdate();
+LPC_GPIO0->FIODIR = DT_CTRL | RS_CTRL | EN_CTRL; //Config output
+flag1 =0;//Command
+for(i=0; i<9;i++)
+{
+temp1 = init_command[i];
+lcd_write();
+//send Init commands to LCD
+}
+flag1 =1;//Data
+i=0;
+ 
+while (msg[i] != '\0')
+{
+temp1 = msg[i];
+lcd_write();
+	i=i+1;//Send data bytes
+}
+while(1);
+}
+ 
+ 
+void lcd_write (void)
+{
+flag2 = (flag1 == 1) ? 0 :((temp1 == 0x30) || (temp1 == 0x20)) ? 1 : 0;//If command is 0x30 (
+//Working in 8 bit mode initially) initially), send ?3? on D7 D4 ( D3 D0 already grounded
+temp2 = temp1 & 0xF0;//
+temp2 = temp2 << 19;//data lines from 23 to 26.
+//Shift left (26 8+1) times so that higher digit is sent on P0.26 to P0.23
+port_write();
+// Output the higher digit on P0.26 P0.23
+if (!flag2) //Other than command 0x30, send the lower 4 bt also
+{
+temp2 = temp1 & 0x0F; //26-4+1
+ 
+temp2 = temp2 << 23;
+port_write(); // Output the lower digit on P0.26 P0.23
+}
+}
+ 
+void port_write (void)
+{
+LPC_GPIO0->FIOPIN = temp2;
+if (flag1 == 0)
+LPC_GPIO0->FIOCLR = RS_CTRL; // Select command register
+else
+	LPC_GPIO0->FIOSET = RS_CTRL; //Select data register
+	LPC_GPIO0->FIOSET = EN_CTRL; //Apply edge on Enable
+	delay_lcd(25000);
+ 
+	LPC_GPIO0->FIOCLR = EN_CTRL;
+delay_lcd(500000);
+ 
+}
+ 
+ 
+void delay_lcd (unsigned int r1)
+{
+unsigned int r;
+for(r=0;r<r1;r++);
+return;
+}
+
+Q2)LCD Up counter
+#include <LPC17xx.h>
+#define RS_CTRL 0x08000000 //P0.27
+#define EN_CTRL 0x10000000 //P0.28
+#define DT_CTRL 0x07800000 //P0.23 to P0.26 data lines
+unsigned long int temp1=0, temp2=0,i,j ;
+unsigned char flag1 =0, flag2 =0;
+unsigned char msg[] = {"COUNTER"};
+unsigned char counter= '0';
+ 
+ 
+void lcd_write (void);
+ 
+void port_write (void);
+void delay_lcd (unsigned int);
+unsigned long int init_command [] = {0x30,0x30,0x30,0x20,0x28,0x0C,0X06,0X01,0X80};
+int main(void)
+{
+SystemInit();
+SystemCoreClockUpdate();
+LPC_GPIO0->FIODIR = DT_CTRL | RS_CTRL | EN_CTRL; //Config output
+flag1 =0;//Command
+for(i=0; i<9;i++)
+{
+temp1 = init_command[i];
+lcd_write();
+//send Init commands to LCD
+}
+flag1 =1;//Data
+i=0;
+ 
+while (msg[i] != '\0')
+{
+temp1 = msg[i];
+lcd_write();
+	i=i+1;//Send data bytes
+}
+while(1){
+ flag1=0;
+	temp1=0xC0;
+	lcd_write();
+	flag1=1;
+	temp1= counter;
+	lcd_write();
+	delay_lcd(5000);
+	counter++;
+	if (counter>'9')
+		counter='0';
+	
+}
+}
+ 
+ 
+void lcd_write(void)
+{
+flag2 = (flag1 == 1) ? 0 :((temp1 == 0x30) || (temp1 == 0x20)) ? 1 : 0;//If command is 0x30 (
+//Working in 8 bit mode initially) initially), send ?3? on D7 D4 ( D3 D0 already grounded
+temp2 = temp1 & 0xF0;//
+temp2 = temp2 << 19;//data lines from 23 to 26.
+//Shift left (26 8+1) times so that higher digit is sent on P0.26 to P0.23
+port_write();
+// Output the higher digit on P0.26 P0.23
+if (!flag2) //Other than command 0x30, send the lower 4 bt also
+{
+temp2 = temp1 & 0x0F; //26-4+1
+ 
+temp2 = temp2 << 23;
+port_write(); // Output the lower digit on P0.26 P0.23
+}
+}
+ 
+void port_write (void)
+{
+LPC_GPIO0->FIOPIN = temp2;
+if (flag1 == 0)
+LPC_GPIO0->FIOCLR = RS_CTRL; // Select command register
+else
+	LPC_GPIO0->FIOSET = RS_CTRL; //Select data register
+	LPC_GPIO0->FIOSET = EN_CTRL; //Apply edge on Enable
+	delay_lcd(2500000);
+ 
+	LPC_GPIO0->FIOCLR = EN_CTRL;
+delay_lcd(5000000);
+ 
+}
+ 
+ 
+void delay_lcd (unsigned int r1)
+{
+unsigned int r;
+for(r=0;r<r1;r++);
+return;
+}
+
+q3) Keyboard Interfacing
+#include <LPC17xx.h>
+#include <stdio.h>
+
+
+#define RS_CTRL  0x08000000  // P0.27
+#define EN_CTRL  0x10000000  // P0.28
+#define DT_CTRL  0x07800000  // P0.23 to P0.26 data lines
+
+
+unsigned char mat[4][4] = {
+    {'1', '2', '3', '+'},
+    {'4', '5', '6', '-'},
+    {'7', '8', '9', '*'},
+    {'=', '0', '#', '/'}
+};
+
+unsigned long temp, temp1, temp2, i, row, col, flag;
+unsigned char flag1 = 0, flag2=0; 
+unsigned char msg[2];
+
+// Function prototypes
+void lcd_write(void);
+void port_write(void);
+void delay_lcd(unsigned int);
+void scan(void);
+void initialize_gpio(void);
+void lcd_init(void);
+void lcd_display_char(char c);
+void lcd_send_command(unsigned char cmd);
+
+int main(void)
+{
+    SystemInit();
+    SystemCoreClockUpdate();
+    
+    initialize_gpio();
+
+    lcd_init();
+
+    while (1) {
+        for (row = 0; row < 4; row++) {
+            temp = 1 << (10 + row);  
+            LPC_GPIO2->FIOPIN = temp;
+
+            flag = 0;
+
+            scan();
+
+            if (flag == 1) {
+                msg[0] = mat[row][col];  
+                lcd_display_char(msg[0]); 
+                delay_lcd(1000000);  
+            }
+        }
+    }
+}
+
+void initialize_gpio(void)
+{
+   
+    LPC_GPIO0->FIODIR = DT_CTRL | RS_CTRL | EN_CTRL; 
+
+    
+    LPC_GPIO1->FIODIR = 0x00000000;  
+    LPC_GPIO2->FIODIR = 0x00003C00;  
+}
+
+void lcd_init(void)
+{
+    unsigned long init_command[] = {0x30, 0x30, 0x30, 0x20, 0x28, 0x0C, 0x06, 0x01, 0x80};
+    
+    for (i = 0; i < 9; i++) {
+        temp1 = init_command[i];
+        lcd_write(); 
+    }
+}
+
+void lcd_write(void)
+{
+    flag2 = (flag1 == 1) ? 0 : ((temp1 == 0x30) || (temp1 == 0x20)) ? 1 : 0;
+    
+    
+    temp2 = temp1 & 0xf0;
+    temp2 = temp2 << 19;
+    port_write();
+
+    if (!flag2) {
+        temp2 = temp1 & 0x0f;
+        temp2 = temp2 << 23;
+        port_write();
+    }
+}
+
+void port_write(void)
+{
+    LPC_GPIO0->FIOPIN = temp2;  
+    
+    if (flag1 == 0) {
+        LPC_GPIO0->FIOCLR = RS_CTRL;  
+    } else {
+        LPC_GPIO0->FIOSET = RS_CTRL;  
+    }
+
+    LPC_GPIO0->FIOSET = EN_CTRL;  
+    delay_lcd(25); 
+    LPC_GPIO0->FIOCLR = EN_CTRL;  
+    delay_lcd(5000000);  
+}
+
+void delay_lcd(unsigned int r1)
+{
+    unsigned int r;
+    for (r = 0; r < r1; r++);
+    return;
+}
+
+void scan(void)
+{
+    unsigned long temp3;
+
+    delay_lcd(5000);
+
+    temp3 = LPC_GPIO1->FIOPIN;
+    temp3 &= 0x07800000;  
+
+    if (temp3 != 0x00000000) {
+        flag = 1;  
+
+        if (temp3 == 1 << 23) {
+            col = 0;
+        } else if (temp3 == 1 << 24) {
+            col = 1;
+        } else if (temp3 == 1 << 25) {
+            col = 2;
+        } else if (temp3 == 1 << 26) {
+            col = 3;
+        }
+    }
+}
+
+void lcd_display_char(char c)
+{
+    temp1 = c;
+    flag1 = 1; 
+    lcd_write();
+}
+
+----------------------------------------------------------------------ADC----------------------------------------------------------------------------------------------------
+#include<LPC17xx.h>
+#include<stdio.h>
+#define Ref_Vtg 3.300
+#define Full_Scale 0xFFF//12 bit ADC
+#define RS_CTRL 0x08000000 //P0.27
+#define EN_CTRL 0x10000000 //P0.28
+#define DT_CTRL 0x07800000 //P0.23 to P0.26 data lines
+ 
+unsigned long adc_temp;
+unsigned int i;
+float in_vtg;
+unsigned char vtg[7], dval[7];
+ 
+unsigned long int temp1=0, temp2=0,j ;
+unsigned char flag1 =0, flag2 =0;
+unsigned long int init_command[] = {0x30,0x30,0x30,0x20,0x28,0x0c,0x06,0x01,0x80};
+//unsigned long int adc_temp,in_vtg;
+//unsigned char dval,vtg;
+void lcd_write (void);
+ 
+void port_write (void);
+void delay_lcd (unsigned int);
+ 
+int main(void)
+{
+	//float in_vtg;
+//unsigned char vtg[7],dval[7];
+	//flag1 =0;//Command
+ 
+unsigned char Msg3[] = {"ANALOG IP:"};
+unsigned char Msg4[] = {"ADC OUTPUT:"};
+SystemInit();
+SystemCoreClockUpdate();
+//lcd_init();//Initialize LCD
+LPC_GPIO0->FIODIR = DT_CTRL | RS_CTRL | EN_CTRL; //Config output
+LPC_PINCON->PINSEL3 |= 3<<30;
+LPC_SC->PCONP |= (1<<12);
+for (i=0; i<9;i++)
+{ temp1 = init_command[i];
+lcd_write(); }//send Init commands to LCD }
+flag1=1;//Data
+i =0;
+while (Msg3[i++] != '\0')
+{ temp1 = Msg3[i-1];
+lcd_write();}
+flag1=0; //Command
+temp1 = 0xC0;//Cursor at beginning of second line
+lcd_write();
+flag1=1;
+i =0;
+while (Msg4[i++] != '\0')
+{
+temp1 = Msg4[i-1];
+lcd_write();//Send data bytes
+}
+while(1)
+{
+LPC_ADC->ADCR = (1<<5)|(1<<21)|(1<<24);//ADC0.5, start conversion and operational
+while(((adc_temp=LPC_ADC->ADGDR) & (1<<31)) == 0);
+adc_temp = LPC_ADC->ADGDR;
+adc_temp >>= 4;
+adc_temp &= 0x00000FFF; //12 bit ADC
+in_vtg = (((float)adc_temp * (float)Ref_Vtg))/((float)Full_Scale); //calculating input analog voltage
+sprintf(vtg,"%3.2fV",in_vtg); //convert the readings into string to display on LCD
+sprintf(dval,"%x",adc_temp);
+flag1=0;;
+temp1 = 0x8A;
+lcd_write();
+flag1=1;
+i =0;
+while (vtg[i++] != '\0')
+{
+temp1 = vtg[i-1];
+lcd_write();//Send data bytes
+}
+ 
+flag1=0;
+temp1 = 0xCB;
+lcd_write();
+flag1=1;
+i =0;
+while (dval[i++]!='\0')
+{
+temp1 = dval[i-1];
+lcd_write();//Send data bytes
+}
+for(i=0;i<7;i++)
+vtg[i] = dval[i] = 0;
+}
+}
+ 
+void lcd_write (void)
+{
+flag2 = (flag1 == 1) ? 0 :((temp1 == 0x30) || (temp1 == 0x20)) ? 1 : 0;//If command is 0x30 (
+//Working in 8 bit mode initially) initially), send ?3? on D7 D4 ( D3 D0 already grounded
+temp2 = temp1 & 0xF0;//
+temp2 = temp2 << 19;//data lines from 23 to 26.
+//Shift left (26 8+1) times so that higher digit is sent on P0.26 to P0.23
+port_write();
+// Output the higher digit on P0.26 P0.23
+if (!flag2) //Other than command 0x30, send the lower 4 bt also
+{
+temp2 = temp1 & 0x0F; //26-4+1
+ 
+temp2 = temp2 << 23;
+port_write(); // Output the lower digit on P0.26 P0.23
+}
+}
+ 
+void port_write (void)
+{
+LPC_GPIO0->FIOPIN = temp2;
+if (flag1 == 0)
+LPC_GPIO0->FIOCLR = RS_CTRL; // Select command register
+else
+	LPC_GPIO0->FIOSET = RS_CTRL; //Select data register
+	LPC_GPIO0->FIOSET = EN_CTRL; //Apply edge on Enable
+	delay_lcd(25000);
+ 
+	LPC_GPIO0->FIOCLR = EN_CTRL;
+delay_lcd(500000);
+ 
+}
+ 
+void delay_lcd (unsigned int r1)
+{
+unsigned int r;
+for(r=0;r<r1;r++);
+return;
+}
+
+------------------------------------------------------------------PWM---------------------------------------------------------------------------------------------------------
+#include<LPC17xx.h>
+
+void initpwm(void);
+void updatepulsewidth(unsigned int pulsewidth);
+void delayms(unsigned int milliseconds);
+int scan(void);
+unsigned int temp3;
+int pulsewidth[]={1000,2500,5000,7500};
+int dir=0;
+
+int main(void)
+{
+	LPC_GPIO0->FIODIR = 0xf00;
+	initpwm();
+	while(1)
+	{
+		int count=scan();
+		if(count==0x1)
+			updatepulsewidth(pulsewidth[0]);
+		else if(count==0x2)
+			updatepulsewidth(pulsewidth[1]);
+		else if(count==0x4)
+			updatepulsewidth(pulsewidth[2]);
+		else if(count==0x8)
+			updatepulsewidth(pulsewidth[3]);
+		delayms(100000);
+	}
+
+}
+
+void initpwm(void)
+{
+	LPC_PINCON->PINSEL3|=0x8000;
+	LPC_PWM1->PCR=0x1000;
+	LPC_PWM1->PR=0;
+	LPC_PWM1->MR0=10000;
+	LPC_PWM1->MCR=2;
+	LPC_PWM1->LER=0xff;
+	LPC_PWM1->TCR=0x2;
+	LPC_PWM1->TCR=0x9;
+}
+
+void updatepulsewidth(unsigned int pulsewidth)
+{
+	LPC_PWM1->MR4=pulsewidth;
+	LPC_PWM1->LER=0xff;
+}
+
+void delayms(unsigned int milliseconds)
+{
+	LPC_TIM0->CTCR=0x0;
+	LPC_TIM0->PR=2;
+	LPC_TIM0->TCR=0x02;
+	LPC_TIM0->TCR=0x1;
+	while(LPC_TIM0->TC<milliseconds);
+	LPC_TIM0->TCR=0;
+}
+
+int scan(void)
+{
+	LPC_GPIO0->FIOSET = 0x100;
+	temp3 = LPC_GPIO0->FIOPIN;
+	temp3 &= 0xf0;
+	if(temp3!=0)
+		return temp3>>4;
+	return 1;
+}
